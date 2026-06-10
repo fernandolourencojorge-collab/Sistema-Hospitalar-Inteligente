@@ -1,0 +1,32 @@
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
+from sqlalchemy.orm import relationship
+from database.conexao import Base
+from datetime import datetime
+
+class UtilizadorModelo(Base):
+    __tablename__ = "utilizadores"
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, nullable=False)
+    password = Column(String, nullable=False)
+    funcao = Column(String, nullable=False)
+
+class PacienteModelo(Base):
+    __tablename__ = "pacientes"
+    id = Column(Integer, primary_key=True, index=True)
+    nome = Column(String, nullable=False)
+    data_nascimento = Column(String, nullable=False)
+    genero = Column(String, nullable=False)
+    telefone = Column(String, nullable=False)
+    triagens = relationship("TriagemModelo", back_populates="paciente", cascade="all, delete-orphan")
+
+class TriagemModelo(Base):
+    __tablename__ = "triagens"
+    id = Column(Integer, primary_key=True, index=True)
+    paciente_id = Column(Integer, ForeignKey("pacientes.id"), nullable=False)
+    temperatura = Column(Float, nullable=False)
+    pressao_arterial = Column(String, nullable=False)
+    frequencia_cardiaca = Column(Integer, nullable=False)
+    sintomas = Column(String, nullable=False)
+    prioridade_ia = Column(String, nullable=False)
+    data_triagem = Column(DateTime, default=datetime.now)
+    paciente = relationship("PacienteModelo", back_populates="triagens")
