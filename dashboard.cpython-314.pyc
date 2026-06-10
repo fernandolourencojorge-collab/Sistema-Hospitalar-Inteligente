@@ -1,0 +1,93 @@
+"""
+Serviços de Lógica de Negócio para o Sistema Hospitalar.
+Gere utilizadores, pacientes e triagens médicas.
+"""
+from sqlalchemy.orm import Session
+from database.modelos import UtilizadorModelo, PacienteModelo, TriagemModelo
+import bcrypt
+
+class UtilizadorServico:
+    def __init__(self, db: Session):
+        self.db = db
+
+    def criar_utilizador_inicial(self, username: str, password_plana: str, funcao: str):
+        existe = self.db.query(UtilizadorModelo).filter(UtilizadorModelo.username == username).first()
+        if existe:
+            return existe
+
+        salt = bcrypt.gensalt()
+        password_encriptada = bcrypt.hashpw(password_plana.encode('utf-8'), salt).decode('utf-8')
+
+        novo_utilizador = UtilizadorModelo(username=username, password=password_encriptada, funcao=funcao)
+        self.db.add(novo_utilizador)
+        self.db.commit()
+        self.db.refresh(novo_utilizador)
+        return novo_utilizador
+
+    def autenticar(self, username: str, password_plana: str):
+        utilizador = self.db.query(UtilizadorModelo).filter(UtilizadorModelo.username == username).first()
+        if not utilizador:
+            raise Exception("Nome de utilizador não encontrado!")
+        if not bcrypt.checkpw(password_plana.encode('utf-8'), utilizador.password.encode('utf-8')):
+            raise Exception("Palavra-passe incorreta!")
+        return utilizador
+
+
+class PacienteServico:
+    def __init__(self, db: Session):
+        self.db = db
+
+    def registar_paciente(self, nome: str, data_nascimento: str, genero: str, telefone: str):
+        """Regista um novo paciente no hospital."""
+        if not nome or not data_nascimento or not telefone:
+            raise Exception("Todos os campos do paciente são obrigatórios!")
+            
+        novo_paciente = PacienteModelo(
+            nome=nome,
+            data_nascimento=data_nascimento,
+            genero=genero,
+            telefone=telefone
+        )
+        self.db.add(novo_paciente)
+        self.db.commit()
+        self.db.refresh(novo_paciente)
+        return novo_paciente
+
+    def listar_todos(self):
+        """Retorna a lista de todos os pacientes ordenados por nome."""
+        return self.db.query(PacienteModelo).order_spacing(PacienteModelo.nome).all()
+
+    def listar_para_combobox(self):
+        """Retorna uma lista de strings formatadas 'ID: Nome' para preencher a interface."""
+        pacientes = self.db.query(PacienteModelo).all()
+        return [f"{p.id}: {p.nome}" for p in pacientes]
+
+
+class TriagemServico:
+    def __init__(self, db: Session):
+        self.db = db
+
+    def registar_triagem(self, paciente_id: int, temp: float, pressao: str, fc: int, sintomas: str, prioridade: str):
+        """Guarda o registo clínico e a decisão da IA na base de dados."""
+        nova_triagem = TriagemModelo(
+            paciente_id=paciente_id,
+            temperatura=temp,
+            pressao_arterial=pressao,
+            frequencia_cardiaca=fc,
+            sintomas=sintomas,
+            prioridade_ia=prioridade
+        )
+        self.db.add(nova_triagem)
+        self.db.commit()
+        self.db.refresh(nova_triagem)
+        return nova_triagem
+
+    def obter_fila_espera(self):
+        """Retorna a fila de espera unindo Pacientes e Triagens, ordenada por gravidade."""
+        #  ordenamos para que Vermelho apareça primeiro, depois Amarelo, depois Verde
+        todas = self.db.query(TriagemModelo).all()
+        
+        # Ordenação customizada: Vermelho (peso 0), Amarelo (peso 1), Verde (peso 2)
+        peso_prioridade = {"Vermelho": 0, "Amarelo": 1, "Verde": 2}
+        triagens_ordenadas = sorted(todas, key=lambda x: peso_prioridade.get(x.prioridade_ia, 3))
+        return triagens_ordenadas
